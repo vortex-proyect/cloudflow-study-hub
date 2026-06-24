@@ -16,10 +16,19 @@ export async function POST(req: NextRequest) {
     const db = new DBClient(env);
 
     // 1. Retrieve representative context for the whole document
-    // In a real scenario, we'd sample the most important chunks or use a summary
     const queryVector = await ai.generateEmbeddings('General overview and key concepts of the document');
     const results = await vs.queryVectors(queryVector, 10);
-    const context = `[Document Summary Context for Quiz]: This is a compiled set of the most important fragments from the document.`;
+
+    // Extract chunk indices from metadata
+    const indices = results.map((r: any) => r.metadata?.chunkIndex).filter(Boolean) as number[];
+
+    // Fetch real text fragments from D1
+    const fragments = await db.getChunks(docId, indices);
+    const context = fragments.join('\\n\\n');
+
+    if (!context) {
+      throw new Error('No relevant context found to generate quiz');
+    }
 
     // 2. Generate Quiz using Llama-3
     const quizJson = await ai.generateQuiz(context, difficulty, count);

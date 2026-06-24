@@ -19,8 +19,12 @@ export class DBClient {
     return await this.db.prepare('SELECT * FROM documents WHERE id = ?').bind(doc.id).first()<Document>();
   }
 
-  async updateDocumentStatus(id: string, status: Document['status']): Promise<void> {
-    await this.db.prepare('UPDATE documents SET status = ? WHERE id = ?').bind(status, id).run();
+  async getChunks(documentId: string, indices: number[]): Promise<string[]> {
+    const placeholders = indices.map(() => '?').join(',');
+    const rows = await this.db.prepare(
+      `SELECT content FROM document_texts WHERE document_id = ? AND chunk_index IN (${placeholders}) ORDER BY chunk_index ASC`
+    ).bind(documentId, ...indices).all() as {content: string}[];
+    return rows.map(r => r.content);
   }
 
   async createQuiz(quiz: Partial<Quiz>): Promise<void> {

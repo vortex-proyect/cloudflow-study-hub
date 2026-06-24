@@ -19,10 +19,16 @@ export async function POST(req: NextRequest) {
     // 2. Retrieve Relevant Context (Simulated top-k from Vectorize)
     const results = await vs.queryVectors(queryVector, 5);
 
-    // We'll simulate context reconstruction here since Vectorize doesn't store
-    // full text in the index by default (it stores IDs and vectors)
-    // In production, you'd fetch the original chunks from a KV store or R2
-    const context = `[Context from Document ${docId}]: This is a simulated retrieval of the 5 most relevant fragments from your document.`;
+    // Extract chunk indices from metadata
+    const indices = results.map((r: any) => r.metadata?.chunkIndex).filter(Boolean) as number[];
+
+    // Fetch real text fragments from D1
+    const fragments = await db.getChunks(docId, indices);
+    const context = fragments.join('\\n\\n');
+
+    if (!context) {
+      throw new Error('No relevant context found in document');
+    }
 
     // 3. Generate Response via Llama-3
     const systemPrompt = `You are the CloudFlow AI Assistant. Use the provided context to answer the user accurately.
