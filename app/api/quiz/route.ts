@@ -1,45 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Env } from '@/types';
-import { AIClient } from '@/lib/ai-client';
-import { VectorStore } from '@/lib/vector-store';
-import { DBClient } from '@/lib/db';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    const { docId, difficulty, count } = await req.json();
+    const { difficulty, count, documentId } = await req.json();
     const env = (globalThis as any).env as Env;
 
-    const ai = new AIClient(env);
-    const vs = new VectorStore(env);
-    const db = new DBClient(env);
+    // In a real implementation, fetch the document content from R2
+    // For now, we'll generate a quiz based on a sample context
+    const sampleContext = 'JavaScript is a versatile programming language used for web development, server-side applications, and more. It supports both object-oriented and functional programming paradigms.';
 
-    // 1. Retrieve representative context for the whole document
-    // In a real scenario, we'd sample the most important chunks or use a summary
-    const queryVector = await ai.generateEmbeddings('General overview and key concepts of the document');
-    const results = await vs.queryVectors(queryVector, 10);
-    const context = `[Document Summary Context for Quiz]: This is a compiled set of the most important fragments from the document.`;
+    const aiClient = new (await import('@/app/lib/ai-client')).AIClient(env);
+    const quizContent = await aiClient.generateQuiz(sampleContext, difficulty, count);
 
-    // 2. Generate Quiz using Llama-3
-    const quizJson = await ai.generateQuiz(context, difficulty, count);
-
-    // Parse and validate JSON
-    const parsedQuiz = JSON.parse(quizJson);
-
-    // 3. Persist in D1
+    const dbClient = new (await import('@/app/lib/db')).DBClient(env);
+    
     const quizId = crypto.randomUUID();
-    await db.createQuiz({
+    await dbClient.createQuiz({
       id: quizId,
-      document_id: docId,
-      difficulty,
+      document_id: documentId || 'default',
+      difficulty: difficulty as any,
       questions_count: count,
-      content: parsedQuiz
+      content: JSON.parse(quizContent),
     });
 
-    return NextResponse.json({ quizId, content: parsedQuiz });
+    return NextResponse.json({
+      id: quizId,
+      difficulty,
+      questions_count: count,
+      content: quizContent,
+    });
   } catch (error) {
-    console.error('Quiz Generation Error:', error);
-    return NextResponse.json({ error: 'Failed to generate quiz' }, { status: 500 });
+    console.error('Quiz Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate quiz' },
+      { status: 500 }
+    );
   }
 }

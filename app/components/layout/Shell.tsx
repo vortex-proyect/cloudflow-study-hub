@@ -1,30 +1,29 @@
+'use client';
+
 import React from 'react';
-import { LucideLayoutDashboard, LucideFileText, LucideMessageSquare, LucideZap } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
-export default function Shell({ children }: { children: React.ReactNode }) {
+interface ShellProps {
+  children: React.ReactNode;
+}
+
+export default function Shell({ children }: ShellProps) {
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
-      {/* Top Navigation */}
-      <nav className="fixed top-0 w-full h-16 border-b border-white/10 bg-background/80 backdrop-blur-md z-50 flex items-center justify-between px-6">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-electric-glow rounded-lg bg-primary">
-            <LucideZap className="w-5 h-5 text-white" />
+    <div className="flex flex-col h-screen bg-background text-foreground">
+      {/* Header */}
+      <header className="bg-secondary/20 border-b border-white/10 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold electric-glow">CloudFlow Study Hub</h1>
+            <p className="text-sm text-muted-foreground mt-1">AI-powered learning platform</p>
           </div>
-          <span className="text-xl font-bold tracking-tight">
-            CloudFlow <span className="text-primary">Study Hub</span>
-          </span>
+          <div className="text-sm text-muted-foreground">
+            Powered by Cloudflare
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <button className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            My Library
-          </button>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-blue-400 border border-white/20" />
-        </div>
-      </nav>
+      </header>
 
-      {/* Main Content Area */}
-      <main className="pt-16 h-screen overflow-hidden flex flex-col">
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden">
         {children}
       </main>
     </div>
