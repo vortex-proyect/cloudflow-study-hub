@@ -23,6 +23,6 @@ export default function Dashboard() {
           <AssistantChat />
         </div>
       </div>
-    </main>
+    </Shell>
   );
 }

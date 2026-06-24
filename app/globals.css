@@ -1,5 +1,6 @@
 @tailwind base;
-@tailwind components the utilities;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: 0 0% 3.9%;
@@ -36,4 +37,21 @@ body {
 
 .electric-glow {
   box-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
