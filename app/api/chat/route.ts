@@ -19,10 +19,26 @@ export async function POST(req: NextRequest) {
     const systemPrompt = 'You are a helpful academic assistant. Provide clear, accurate answers to student questions.';
     const response = await aiClient.generateText(message, systemPrompt);
 
-    return NextResponse.json({
-      response,
-      embedding,
-    });
+    // Extract chunk indices from metadata
+    const indices = results.map((r: any) => r.metadata?.chunkIndex).filter(Boolean) as number[];
+
+    // Fetch real text fragments from D1
+    const fragments = await db.getChunks(docId, indices);
+    const context = fragments.join('\\n\\n');
+
+    if (!context) {
+      throw new Error('No relevant context found in document');
+    }
+
+    // 3. Generate Response via Llama-3
+    const systemPrompt = `You are the CloudFlow AI Assistant. Use the provided context to answer the user accurately.
+    If the answer is not in the context, tell the user you don't know, but offer to help in another way.
+    Always maintain a helpful, academic, and professional tone.`;
+
+    const prompt = `Context: ${context}\n\nUser Question: ${message}`;
+    const response = await ai.generateText(prompt, systemPrompt);
+
+    return NextResponse.json({ response });
   } catch (error) {
     console.error('Chat Error:', error);
     return NextResponse.json(
