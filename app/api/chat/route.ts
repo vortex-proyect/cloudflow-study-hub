@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Env } from '@/types';
-import { AIClient } from '@/lib/ai-client';
-import { VectorStore } from '@/lib/vector-store';
+import { Env, ChatMessage } from '@/types';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, docId, sessionId } = await req.json();
+    const { message, history } = await req.json();
     const env = (globalThis as any).env as Env;
 
-    const ai = new AIClient(env);
-    const vs = new VectorStore(env);
+    // Generate embeddings for the message
+    const aiClient = new (await import('@/app/lib/ai-client')).AIClient(env);
+    const embedding = await aiClient.generateEmbeddings(message);
 
-    // 1. Vectorize User Query
-    const queryVector = await ai.generateEmbeddings(message);
+    // Search vector store for relevant documents
+    // const relevantDocs = await env.VECTOR_INDEX.query(embedding);
 
-    // 2. Retrieve Relevant Context (Simulated top-k from Vectorize)
-    const results = await vs.queryVectors(queryVector, 5);
+    // Generate response
+    const systemPrompt = 'You are a helpful academic assistant. Provide clear, accurate answers to student questions.';
+    const response = await aiClient.generateText(message, systemPrompt);
 
     // Extract chunk indices from metadata
     const indices = results.map((r: any) => r.metadata?.chunkIndex).filter(Boolean) as number[];
@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ response });
   } catch (error) {
     console.error('Chat Error:', error);
-    return NextResponse.json({ error: 'AI Assistant is currently unavailable' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to process message' },
+      { status: 500 }
+    );
   }
 }

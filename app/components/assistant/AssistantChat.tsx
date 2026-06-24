@@ -1,95 +1,126 @@
-import React, { useState } from 'react';
-import { LucideSend, LucideBot, LucideUser, LucideSparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, MessageCircle } from 'lucide-react';
 
 interface Message {
-  id: string;
   role: 'user' | 'assistant';
   content: string;
 }
 
 export default function AssistantChat() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'assistant', content: 'Hello! I have analyzed your documents. What would you like to explore today?' }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = () => {
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const sendMessage = async () => {
     if (!input.trim()) return;
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
 
-    // Simulate AI thinking
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: (Date.now()+1).toString(),
-        role: 'assistant',
-        content: 'Based on the documents provided, the core concept of Quantum Tunneling is...'
-      }]);
-    }, 1000);
+    const userMessage = { role: 'user' as const, content: input };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: input,
+          history: messages,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: data.response },
+        ]);
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full bg-secondary/30 border-l border-white/5 backdrop-blur-xl">
-      <div className="p-4 border-b border-white/5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <LucideBot className="w-5 h-5 text-primary" />
-          <span className="font-semibold">AI Assistant</span>
-        </div>
-        <LucideSparkles className="w-4 h-4 text-primary/50 animate-pulse" />
+    <div className="flex flex-col h-full bg-secondary/5 border-l border-white/5">
+      {/* Header */}
+      <div className="p-4 border-b border-white/10 flex items-center gap-2">
+        <MessageCircle className="w-5 h-5 text-primary" />
+        <h3 className="font-semibold">AI Assistant</h3>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        <AnimatePresence>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={cn(
-                "flex gap-3 max-w-[85%]",
-                msg.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
-              )}
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            <p>Start a conversation with the AI assistant</p>
+          </div>
+        ) : (
+          messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={cn(
-                "p-2 rounded-full shrink-0",
-                msg.role === 'user' ? "bg-primary" : "bg-muted"
-              )}>
-                {msg.role === 'user' ? <LucideUser className="w-4 h-4 text-white" /> : <LucideBot className="w-4 h-4 text-primary" />}
+              <div
+                className={`max-w-[80%] p-3 rounded-lg ${
+                  msg.role === 'user'
+                    ? 'bg-primary text-white'
+                    : 'bg-secondary/30 text-foreground'
+                }`}
+              >
+                <p className="text-sm">{msg.content}</p>
               </div>
-              <div className={cn(
-                "p-3 rounded-2xl text-sm leading-relaxed",
-                msg.role === 'user' ? "bg-primary text-white rounded-tr-none" : "bg-muted text-foreground rounded-tl-none border border-white/5"
-              )}>
-                {msg.content}
+            </div>
+          ))
+        )}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-secondary/30 p-3 rounded-lg">
+              <div className="flex gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
               </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-white/5 bg-background/50">
-        <div className="relative flex items-center gap-2">
+      {/* Input */}
+      <div className="p-4 border-t border-white/10">
+        <div className="flex gap-2">
           <input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask anything about your docs..."
-            className="w-full bg-secondary border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-primary/50 transition-all"
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder="Ask me anything..."
+            className="flex-1 bg-secondary/20 border border-white/10 rounded px-3 py-2 text-sm outline-none focus:border-primary"
+            disabled={loading}
           />
           <button
-            onClick={handleSend}
-            className="absolute right-2 p-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={sendMessage}
+            disabled={loading || !input.trim()}
+            className="bg-primary text-white px-4 py-2 rounded disabled:opacity-50 transition"
           >
-            <LucideSend className="w-4 h-4" />
+            <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
     </div>
   );
-}
-
-function cn(...classes: string[]) {
-  return classes.filter(Boolean).join(' ');
 }
