@@ -1,9 +1,11 @@
+import type { Metadata } from 'next';
 import './globals.css';
 import Shell from './components/layout/Shell';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'CloudFlow Study Hub',
-  description: 'AI-Powered Study Material Hub',
+  description: 'AI-powered study platform powered by Cloudflare',
+  viewport: 'width=device-width, initial-scale=1',
 };
 
 export default function RootLayout({
@@ -12,7 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta charSet="utf-8" />
+      </head>
       <body>
         <Shell>
           {children}

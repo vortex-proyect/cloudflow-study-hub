@@ -1,115 +1,108 @@
 "use client";
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LucideUpload, LucideFile, LucideX, LucideCheckCircle } from 'lucide-react';
+import { LucideUpload, LucideFile, LucideX, LucideCheckCircle, Upload, File } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function UploadZone() {
-  const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => setIsDragging(false);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
     const droppedFiles = Array.from(e.dataTransfer.files);
-    setFiles(prev => [...prev, ...droppedFiles]);
-  }, []);
-
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    handleFiles(droppedFiles);
   };
 
-  const simulateUpload = async () => {
-    setUploading(true);
-    for (let i = 0; i <= 100; i += 10) {
-      setProgress(i);
-      await new Promise(r => setTimeout(r, 200));
+  const handleFiles = (fileList: globalThis.File[]) => {
+    const validFiles = fileList.filter(
+      (file) =>
+        file.type === 'application/pdf' ||
+        file.type === 'application/msword' ||
+        file.type === 'text/plain'
+    );
+
+    if (validFiles.length === 0) {
+      setError('Please upload PDF, DOC, or TXT files only');
+      return;
     }
-    setUploading(false);
+
+    setError(null);
+    setFiles((prev) => [...prev, ...validFiles]);
+  };
+
+  const uploadFiles = async () => {
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed for ${file.name}`);
+        }
+      }
+      setFiles([]);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
-    <div className="flex flex-col gap-6 h-full">
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold">Upload Documents</h2>
+
       <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={cn(
-          "relative group flex-1 border-2 border-dashed rounded-3xl transition-all duration-300 cursor-pointer overflow-hidden",
-          isDragging ? "border-primary bg-primary/10 scale-[0.99]" : "border-white/10 hover:border-primary/50 bg-secondary/50"
-        )}
+        onDragOver={(e) => e.preventDefault()}
+        className="border-2 border-dashed border-white/20 rounded-lg p-6 text-center cursor-pointer hover:border-white/40 transition"
       >
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-          <div className="mb-4 p-4 rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform duration-300">
-            <LucideUpload className="w-8 h-8" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">Upload Your Knowledge</h3>
-          <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-            Drag and drop your PDF, DOCX or TXT files here to start generating study materials.
-          </p>
-          <input type="file" multiple className="hidden" id="file-input" />
-          <label
-            htmlFor="file-input"
-            className="px-6 py-2 bg-primary text-white rounded-full text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors shadow-lg shadow-primary/20"
-          >
-            Browse Files
-          </label>
-        </div>
+        <Upload className="w-8 h-8 mx-auto mb-2 text-primary" />
+        <p className="text-sm text-muted-foreground">Drag and drop files here</p>
+        <input
+          type="file"
+          multiple
+          onChange={(e) => handleFiles(Array.from(e.target.files || []))}
+          className="hidden"
+          id="file-input"
+          accept=".pdf,.doc,.docx,.txt"
+        />
+        <label htmlFor="file-input" className="text-primary text-sm hover:underline">
+          or click to browse
+        </label>
       </div>
 
-      <div className="flex flex-col gap-3 h-fit">
-        <AnimatePresence>
-          {files.map((file, i) => (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              key={file.name + i}
-              className="p-3 rounded-xl bg-secondary border border-white/5 flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <LucideFile className="w-4 h-4 text-primary" />
-                <span className="text-sm truncate max-w-[150px]">{file.name}</span>
-              </div>
-              <button onClick={() => removeFile(i)} className="p-1 hover:bg-white/10 rounded-md transition-colors">
-                <LucideX className="w-4 h-4 text-muted-foreground group-hover:text-white" />
-              </button>
-            </motion.div>
+      {files.length > 0 && (
+        <div className="space-y-2">
+          {files.map((file, idx) => (
+            <div key={idx} className="flex items-center gap-2 p-2 bg-secondary/20 rounded">
+              <File className="w-4 h-4" />
+              <span className="text-sm truncate">{file.name}</span>
+            </div>
           ))}
-        </AnimatePresence>
-
-        {files.length > 0 && (
           <button
-            onClick={simulateUpload}
+            onClick={uploadFiles}
             disabled={uploading}
-            className={cn(
-              "w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2",
-              uploading ? "bg-muted text-muted-foreground" : "bg-primary text-white hover:bg-blue-700 shadow-lg shadow-primary/30"
-            )}
+            className="w-full bg-primary text-white py-2 rounded font-medium disabled:opacity-50"
           >
-            {uploading ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Processing... {progress}%
-              </div>
-            ) : (
-              <>
-                <LucideCheckCircle className="w-4 h-4" />
-                Generate Material
-              </>
-            )}
+            {uploading ? 'Uploading...' : 'Upload Documents'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   );
 }

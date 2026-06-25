@@ -1,66 +1,79 @@
-import React from 'react';
-import { LucideBookOpen, LucidePlay, LucideFileText, LucideLayers } from 'lucide-react';
-import { motion } from 'framer-motion';
+'use client';
 
-interface StudyMaterial {
-  id: string;
-  title: string;
-  type: 'quiz' | 'summary' | 'concepts';
-  status: 'ready' | 'processing';
-}
-
-const DUMMY_MATERIALS: StudyMaterial[] = [
-  { id: '1', title: 'Advanced Quantum Physics Quiz', type: 'quiz', status: 'ready' },
-  { id: '2', title: 'Chapter 4 Summary', type: 'summary', status: 'ready' },
-  { id: '3', title: 'Core Concepts Map', type: 'concepts', status: 'ready' },
-];
+import React, { useState } from 'react';
+import { BookOpen, RotateCw } from 'lucide-react';
 
 export default function StudyHub() {
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const generateQuiz = async (difficulty: 'easy' | 'medium' | 'hard') => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          difficulty,
+          count: 5,
+        }),
+      });
+
+      if (response.ok) {
+        const quiz = await response.json();
+        setQuizzes((prev) => [...prev, quiz]);
+      }
+    } catch (error) {
+      console.error('Failed to generate quiz:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-6 h-full">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <LucideBookOpen className="w-5 h-5 text-primary" />
-          Study Hub
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <BookOpen className="w-5 h-5" />
+          Study Materials
         </h2>
-        <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full border border-white/5">
-          3 Materials Ready
-        </span>
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-2 custom-scrollbar">
-        {DUMMY_MATERIALS.map((item, i) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="p-4 rounded-2xl bg-secondary border border-white/5 hover:border-primary/50 transition-all group cursor-pointer relative overflow-hidden"
+        <div className="space-y-3">
+          <button
+            onClick={() => generateQuiz('easy')}
+            disabled={loading}
+            className="w-full bg-green-600/20 border border-green-600/50 hover:bg-green-600/30 text-green-300 py-2 rounded font-medium disabled:opacity-50 transition"
           >
-            <div className="absolute top-0 right-0 p-2">
-               {item.type === 'quiz' && <LucidePlay className="w-4 h-4 text-primary/50 group-hover:text-primary transition-colors" />}
-               {item.type === 'summary' && <LucideFileText className="w-4 h-4 text-primary/50 group-hover:text-primary transition-colors" />}
-               {item.type === 'concepts' && <LucideLayers className="w-4 h-4 text-primary/50 group-hover:text-primary transition-colors" />}
-            </div>
-
-            <div className="mb-4">
-              <span className="text-[10px] uppercase tracking-widest text-primary font-bold">
-                {item.type}
-              </span>
-              <h3 className="text-md font-semibold mt-1 group-hover:text-primary transition-colors">
-                {item.title}
-              </h3>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground italic">Updated 2m ago</span>
-              <button className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all">
-                {item.type === 'quiz' ? 'Start Quiz' : 'Open Document'}
-              </button>
-            </div>
-          </motion.div>
-        ))}
+            {loading ? 'Generating...' : 'Generate Easy Quiz'}
+          </button>
+          <button
+            onClick={() => generateQuiz('medium')}
+            disabled={loading}
+            className="w-full bg-yellow-600/20 border border-yellow-600/50 hover:bg-yellow-600/30 text-yellow-300 py-2 rounded font-medium disabled:opacity-50 transition"
+          >
+            {loading ? 'Generating...' : 'Generate Medium Quiz'}
+          </button>
+          <button
+            onClick={() => generateQuiz('hard')}
+            disabled={loading}
+            className="w-full bg-red-600/20 border border-red-600/50 hover:bg-red-600/30 text-red-300 py-2 rounded font-medium disabled:opacity-50 transition"
+          >
+            {loading ? 'Generating...' : 'Generate Hard Quiz'}
+          </button>
+        </div>
       </div>
+
+      {quizzes.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-md font-semibold">Generated Quizzes</h3>
+          {quizzes.map((quiz, idx) => (
+            <div key={idx} className="p-4 bg-secondary/20 border border-white/10 rounded">
+              <p className="text-sm text-muted-foreground">Quiz {idx + 1}</p>
+              <p className="text-sm mt-2">Difficulty: {quiz.difficulty}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
