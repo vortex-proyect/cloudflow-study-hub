@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from 'react';
 import { LucideSend, LucideBot, LucideUser, LucideSparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
