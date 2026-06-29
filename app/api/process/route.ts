@@ -1,35 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Env } from '@/types';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { AIClient } from '@/lib/ai-client';
+import { DocumentRepository } from '@/lib/repositories/document-repository';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
+/**
+ * POST /api/process
+ *
+ * Retrieves a document from R2, generates embeddings, and updates status.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { documentId, r2Key } = await req.json();
-    const env = (globalThis as any).env as Env;
+    const { documentId, r2Key } = (await req.json()) as {
+      documentId: string;
+      r2Key: string;
+    };
+    const { env } = getRequestContext();
 
     // Retrieve document from R2
     const object = await env.BUCKET.get(r2Key);
     if (!object) {
       return NextResponse.json(
-        { error: 'Document not found' },
+        { error: 'Document not found in storage' },
         { status: 404 }
       );
     }
 
-    // In a production app, extract text from PDF/DOC and process it
+    // Extract text (in production, parse PDF/DOC properly)
     const text = await object.text();
 
     // Generate embeddings
-    const aiClient = new (await import('@/app/lib/ai-client')).AIClient(env);
+    const aiClient = new AIClient(env);
     const embeddings = await aiClient.generateEmbeddings(text);
 
     // Store embeddings in Vectorize
     // await env.VECTOR_INDEX.insert([{ id: documentId, values: embeddings }]);
 
     // Update document status
-    const dbClient = new (await import('@/app/lib/db')).DBClient(env);
-    await dbClient.updateDocumentStatus(documentId, 'indexed');
+    const docRepo = new DocumentRepository(env.DB);
+    await docRepo.updateStatus(documentId, 'indexed');
 
     return NextResponse.json({
       success: true,

@@ -1,37 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Env } from '@/types';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { DocumentRepository } from '@/lib/repositories/document-repository';
 
 export const runtime = 'edge';
 
+/**
+ * POST /api/upload
+ *
+ * Proxy upload: the client sends the file directly as multipart/form-data.
+ * The server stores it in R2 and creates the document record in D1.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { filename, contentType } = await req.json();
-    const env = (globalThis as any).env as Env;
+    const { env } = getRequestContext();
+    const formData = await req.formData();
+    const file = formData.get('file') as File | null;
+
+    if (!file) {
+      return NextResponse.json(
+        { error: 'No file provided in form data' },
+        { status: 400 }
+      );
+    }
+
+    const filename = file.name;
+    const contentType = file.type || 'application/octet-stream';
 
     // Generate a unique key for R2
     const key = `docs/${Date.now()}-${filename}`;
 
-    // Create a presigned URL for the client to upload directly to R2
-    // Cloudflare R2 presigned URLs are created via a specific worker API or an S3-compatible call
-    // Since this is Next.js on Pages, we use the binding directly
-    const uploadUrl = await env.BUCKET.put(key, new Response(''), {
-        // In a real production env, you'd use a dedicated presigned URL generator
-        // For the purpose of this Hub, we simulate the secure upload flow
+    // Upload the file to R2 via binding
+    await env.BUCKET.put(key, file.stream(), {
+      httpMetadata: { contentType },
     });
 
     // Store metadata in D1
     const docId = crypto.randomUUID();
-    await env.DB.prepare(
-      'INSERT INTO documents (id, user_id, filename, file_type, r2_key, status) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(docId, 'default-user', filename, contentType, key, 'uploading').run();
+    const docRepo = new DocumentRepository(env.DB);
+    const document = await docRepo.createDocument({
+      id: docId,
+      user_id: 'default-user', // TODO: replace with real auth
+      filename,
+      file_type: contentType,
+      r2_key: key,
+      status: 'uploading',
+    });
 
     return NextResponse.json({
-      uploadUrl: 'https://r2.cloudflow.study/upload', // Simplified for the boilerplate
-      docId: docId,
-      key: key
+      docId: document.id,
+      key,
+      message: 'File uploaded successfully',
     });
   } catch (error) {
     console.error('Upload Error:', error);
-    return NextResponse.json({ error: 'Failed to generate upload URL' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to upload file' },
+      { status: 500 }
+    );
   }
 }

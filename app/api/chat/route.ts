@@ -1,42 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Env, ChatMessage } from '@/types';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+import { AIClient } from '@/lib/ai-client';
+import { DocumentRepository } from '@/lib/repositories/document-repository';
+import { ChatRepository } from '@/lib/repositories/chat-repository';
+import { VectorStore } from '@/lib/vector-store';
+import { PROMPTS } from '@/lib/prompts';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
+/**
+ * POST /api/chat
+ *
+ * Receives a user message, retrieves relevant document context via
+ * Vectorize, and generates a response with Llama-3.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { message, history } = await req.json();
-    const env = (globalThis as any).env as Env;
+    const { message, sessionId, documentId } = (await req.json()) as {
+      message: string;
+      sessionId: string;
+      documentId?: string;
+    };
+    const { env } = getRequestContext();
 
-    // Generate embeddings for the message
-    const aiClient = new (await import('@/app/lib/ai-client')).AIClient(env);
-    const embedding = await aiClient.generateEmbeddings(message);
+    const ai = new AIClient(env);
+    const vs = new VectorStore(env);
+    const docRepo = new DocumentRepository(env.DB);
+    const chatRepo = new ChatRepository(env.DB);
 
-    // Search vector store for relevant documents
-    // const relevantDocs = await env.VECTOR_INDEX.query(embedding);
+    // Save the user message
+    await chatRepo.saveChatMessage({
+      id: crypto.randomUUID(),
+      session_id: sessionId,
+      role: 'user',
+      content: message,
+    });
 
-    // Generate response
-    const systemPrompt = 'You are a helpful academic assistant. Provide clear, accurate answers to student questions.';
-    const response = await aiClient.generateText(message, systemPrompt);
+    // 1. Generate embeddings for the user message
+    const embedding = await ai.generateEmbeddings(message);
 
-    // Extract chunk indices from metadata
-    const indices = results.map((r: any) => r.metadata?.chunkIndex).filter(Boolean) as number[];
+    // 2. Search vector store for relevant document chunks
+    const results = await vs.queryVectors(embedding, 5);
+    const indices = (results.matches ?? [])
+      .map((r) => r.metadata?.chunkIndex)
+      .filter((idx): idx is number => typeof idx === 'number');
 
-    // Fetch real text fragments from D1
-    const fragments = await db.getChunks(docId, indices);
-    const context = fragments.join('\\n\\n');
+    let response: string;
 
-    if (!context) {
-      throw new Error('No relevant context found in document');
+    if (documentId && indices.length > 0) {
+      // Context-aware response
+      const fragments = await docRepo.getChunks(documentId, indices);
+      const context = fragments.join('\n\n');
+
+      const prompt = `Context: ${context}\n\nUser Question: ${message}`;
+      response = await ai.generateText(prompt, PROMPTS.CHAT_WITH_CONTEXT);
+    } else {
+      // General response (no document context available)
+      response = await ai.generateText(message, PROMPTS.CHAT_GENERAL);
     }
 
-    // 3. Generate Response via Llama-3
-    const systemPrompt = `You are the CloudFlow AI Assistant. Use the provided context to answer the user accurately.
-    If the answer is not in the context, tell the user you don't know, but offer to help in another way.
-    Always maintain a helpful, academic, and professional tone.`;
-
-    const prompt = `Context: ${context}\n\nUser Question: ${message}`;
-    const response = await ai.generateText(prompt, systemPrompt);
+    // Save the assistant response
+    await chatRepo.saveChatMessage({
+      id: crypto.randomUUID(),
+      session_id: sessionId,
+      role: 'assistant',
+      content: response,
+    });
 
     return NextResponse.json({ response });
   } catch (error) {

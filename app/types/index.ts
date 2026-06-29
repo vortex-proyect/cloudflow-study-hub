@@ -1,9 +1,9 @@
-export interface Env {
-  DB: D1Database;
-  BUCKET: R2Bucket;
-  VECTOR_INDEX: VectorizeIndex;
-  AI: Ai;
-}
+/**
+ * Env is an alias for the global CloudflareEnv interface
+ * (augmented in /env.d.ts with our actual bindings).
+ */
+export type Env = CloudflareEnv;
+
 
 export interface User {
   id: string;

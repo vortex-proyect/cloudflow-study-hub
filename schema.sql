@@ -46,3 +46,12 @@ CREATE TABLE chat_messages (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
 );
+
+-- Performance Indexes
+CREATE INDEX idx_documents_user ON documents(user_id);
+CREATE INDEX idx_documents_status ON documents(status);
+CREATE INDEX idx_quizzes_document ON quizzes(document_id);
+CREATE INDEX idx_chat_sessions_user ON chat_sessions(user_id);
+CREATE INDEX idx_chat_sessions_document ON chat_sessions(document_id);
+CREATE INDEX idx_chat_messages_session ON chat_messages(session_id);
+CREATE INDEX idx_chat_messages_created ON chat_messages(created_at);

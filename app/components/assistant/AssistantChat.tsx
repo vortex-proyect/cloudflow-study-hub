@@ -41,7 +41,7 @@ export default function AssistantChat() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as { response: string };
         setMessages((prev) => [
           ...prev,
           { role: 'assistant', content: data.response },
