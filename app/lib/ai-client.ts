@@ -30,7 +30,7 @@ export class AIClient {
       const response = await this.ai.run('@cf/meta/llama-3-8b-instruct', {
         prompt: `System: ${systemPrompt}\n\nUser: ${prompt}`,
       });
-      if (!response.response) {
+      if (!('response' in response) || !response.response) {
         throw new Error('Empty response from model');
       }
       return response.response;
